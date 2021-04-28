@@ -4,8 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using DeepEqual.Syntax;
-using Microsoft.AspNetCore.Razor.TagHelpers;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Shouldly;
 using SoapCore.Tests.Serialization.Models.Xml;
@@ -203,6 +201,30 @@ namespace SoapCore.Tests.Serialization
 
 			// check output paremeters serialization
 			pingComplexModelResult_client.ShouldDeepEqual(ComplexModel2.CreateSample2());
+		}
+
+		[Theory]
+		[InlineData(SoapSerializer.XmlSerializer)]
+		public void TestMessageContractWithArrays(SoapSerializer soapSerializer)
+		{
+			var sampleServiceClient = _fixture.GetSampleServiceClient(soapSerializer);
+
+			_fixture.ServiceMock
+				.Setup(x => x.TestMessageContractWithArrays(It.IsAny<MessageContractRequestWithArrays>()))
+				.Callback(
+					(MessageContractRequestWithArrays inputModel_service) =>
+					{
+						// check input paremeters serialization
+						inputModel_service.ShouldDeepEqual(MessageContractRequestWithArrays.CreateSample());
+					})
+				.Returns(() => MessageContractResponseWithArrays.CreateSample());
+
+			var pingComplexModelResult_client =
+				sampleServiceClient
+					.TestMessageContractWithArrays(MessageContractRequestWithArrays.CreateSample());
+
+			// check output paremeters serialization
+			pingComplexModelResult_client.ShouldDeepEqual(MessageContractResponseWithArrays.CreateSample());
 		}
 
 		[Theory]
@@ -689,6 +711,52 @@ namespace SoapCore.Tests.Serialization
 			sampleServiceClient.OneWayCall(message);
 		}
 
+		[Theory]
+		[InlineData(SoapSerializer.XmlSerializer)]
+		public void TestPingComplexLegacyModelRequest(SoapSerializer soapSerializer)
+		{
+			var sampleServiceClient = _fixture.GetSampleServiceClient(soapSerializer);
+			var expected = "1234";
+			var request = new ComplexLegacyModel
+			{
+				QualifiedItems = new[] { expected },
+				UnqualifiedItems = new[] { expected }
+			};
+			ComplexLegacyModel actual = null;
+			_fixture.ServiceMock
+				.Setup(x => x.PingComplexLegacyModel(It.IsAny<ComplexLegacyModel>()))
+				.Callback((ComplexLegacyModel o) => actual = o)
+				.Returns(request);
+
+			sampleServiceClient.PingComplexLegacyModel(request);
+
+			Assert.NotNull(actual);
+			Assert.Equal(new[] { expected }, actual.QualifiedItems);
+			Assert.Equal(new[] { expected }, actual.UnqualifiedItems);
+		}
+
+		[Theory]
+		[InlineData(SoapSerializer.XmlSerializer)]
+		public void TestPingComplexLegacyModelResponse(SoapSerializer soapSerializer)
+		{
+			var sampleServiceClient = _fixture.GetSampleServiceClient(soapSerializer);
+			var expected = "1234";
+			var request = new ComplexLegacyModel
+			{
+				QualifiedItems = new[] { expected },
+				UnqualifiedItems = new[] { expected }
+			};
+			_fixture.ServiceMock
+				.Setup(x => x.PingComplexLegacyModel(It.IsAny<ComplexLegacyModel>()))
+				.Returns(request);
+
+			var actual = sampleServiceClient.PingComplexLegacyModel(request);
+
+			Assert.NotNull(actual);
+			Assert.Equal(new[] { expected }, actual.QualifiedItems);
+			Assert.Equal(new[] { expected }, actual.UnqualifiedItems);
+		}
+
 		//https://github.com/DigDes/SoapCore/issues/379
 		[Theory(Skip = "not reproducible")]
 		[InlineData(SoapSerializer.XmlSerializer)]
@@ -710,6 +778,55 @@ namespace SoapCore.Tests.Serialization
 				});
 
 			sampleServiceClient.GetComplexObjectWithXmlElement(obj);
+		}
+
+		[Theory]
+		[InlineData(SoapSerializer.XmlSerializer)]
+		public void TestPingComplexMessageHeaderArraySerialization(SoapSerializer soapSerializer)
+		{
+			var sampleServiceClient = _fixture.GetSampleServiceClient(soapSerializer);
+			var myHeaderValue = new[] { ComplexModel1.CreateSample1() };
+
+			_fixture.ServiceMock
+				.Setup(x => x.PingComplexMessageHeaderArray(It.IsAny<PingComplexMessageHeaderArrayRequest>()))
+				.Callback(
+					(PingComplexMessageHeaderArrayRequest request_service) =>
+					{
+						// check input paremeters serialization
+						request_service.MyHeaderValue.ShouldDeepEqual(myHeaderValue);
+					})
+				.Returns(
+					() => new PingComplexMessageHeaderArrayResponse());
+
+			var pingComplexMessageHeaderArrayResult_client =
+				sampleServiceClient.PingComplexMessageHeaderArray(
+					new PingComplexMessageHeaderArrayRequest
+					{
+						MyHeaderValue = myHeaderValue
+					});
+
+			// Verify method has been called
+			pingComplexMessageHeaderArrayResult_client.ShouldNotBeNull();
+			_fixture.ServiceMock.Verify(x => x.PingComplexMessageHeaderArray(It.IsAny<PingComplexMessageHeaderArrayRequest>()), Times.Once());
+		}
+
+		[Theory]
+		[InlineData(SoapSerializer.XmlSerializer)]
+		public void TestPingResponseWithMessageContractAttributeWrapperNameDifferentFromClass(SoapSerializer soapSerializer)
+		{
+			var sampleServiceClient = _fixture.GetSampleServiceClient(soapSerializer);
+
+			_fixture.ServiceMock
+				.Setup(x => x.PingResponseWithMessageContractAttributeWrapperNameDifferentFromClass(It.IsAny<PingComplexMessageHeaderArrayRequest>()))
+				.Returns(
+					() => new PingComplexMessageMessageContractAttributeResponse { ComplexProperty = new ComplexModel1 { IntProperty = 291 } });
+
+			var result =
+				sampleServiceClient.PingResponseWithMessageContractAttributeWrapperNameDifferentFromClass(new PingComplexMessageHeaderArrayRequest());
+
+			// Verify method has been called
+			result.ShouldNotBeNull();
+			result.ComplexProperty.IntProperty.ShouldBe(291);
 		}
 	}
 }

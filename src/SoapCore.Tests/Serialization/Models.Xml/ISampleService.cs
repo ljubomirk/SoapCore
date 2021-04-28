@@ -76,6 +76,10 @@ namespace SoapCore.Tests.Serialization.Models.Xml
 		[XmlSerializerFormat(SupportFaults = true)]
 		UnwrappedStringMessageBodyMemberResponse TestUnwrappedStringMessageBodyMember(BasicMessageContractPayload x);
 
+		[OperationContract(Action = ServiceNamespace.Value + nameof(TestMessageContractWithArrays), ReplyAction = "*")]
+		[XmlSerializerFormat(SupportFaults = true)]
+		MessageContractResponseWithArrays TestMessageContractWithArrays(MessageContractRequestWithArrays request);
+
 		[OperationContract(Action = ServiceNamespace.Value + nameof(EnumMethod), ReplyAction = "*")]
 		[XmlSerializerFormat(SupportFaults = true)]
 		bool EnumMethod(out SampleEnum e);
@@ -112,6 +116,10 @@ namespace SoapCore.Tests.Serialization.Models.Xml
 		[XmlSerializerFormat]
 		ComplexModel1[] PingComplexModelArrayWithXmlArray([XmlArrayItem("arr1")]ComplexModel1[] models, [XmlElement("arr2")]ComplexModel2[] models2);
 
+		[OperationContract(Action = ServiceNamespace.Value + nameof(ComplexLegacyModel), ReplyAction = "*")]
+		[XmlSerializerFormat(SupportFaults = true)]
+		ComplexLegacyModel PingComplexLegacyModel(ComplexLegacyModel request);
+
 		[OperationContract]
 		[XmlSerializerFormat]
 		int[] PingIntArray(int[] array);
@@ -129,5 +137,13 @@ namespace SoapCore.Tests.Serialization.Models.Xml
 
 		[OperationContract(IsOneWay = true)]
 		void OneWayCall(string s);
+
+		[OperationContract(Action = ServiceNamespace.Value + nameof(PingComplexMessageHeaderArray), ReplyAction = "*")]
+		[XmlSerializerFormat(SupportFaults = true)]
+		PingComplexMessageHeaderArrayResponse PingComplexMessageHeaderArray(PingComplexMessageHeaderArrayRequest request);
+
+		[OperationContract(Action = ServiceNamespace.Value + nameof(PingResponseWithMessageContractAttributeWrapperNameDifferentFromClass), ReplyAction = "*")]
+		[XmlSerializerFormat(SupportFaults = true)]
+		PingComplexMessageMessageContractAttributeResponse PingResponseWithMessageContractAttributeWrapperNameDifferentFromClass(PingComplexMessageHeaderArrayRequest request);
 	}
 }
