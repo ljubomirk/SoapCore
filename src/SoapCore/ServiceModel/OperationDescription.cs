@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization;
@@ -18,15 +20,14 @@ namespace SoapCore.ServiceModel
 			IsOneWay = contractAttribute.IsOneWay;
 			DispatchMethod = operationMethod;
 
-			var returnType = operationMethod.ReturnType;
-
-			if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>))
+			ReturnType = operationMethod.ReturnType;
+			if (ReturnType.IsGenericType && ReturnType.GetGenericTypeDefinition() == typeof(Task<>))
 			{
-				returnType = returnType.GenericTypeArguments[0];
+				ReturnType = ReturnType.GenericTypeArguments[0];
 			}
 
-			IsMessageContractResponse = returnType.CustomAttributes
-					 .FirstOrDefault(ca => ca.AttributeType == typeof(MessageContractAttribute)) != null;
+			IsMessageContractResponse = ReturnType.CustomAttributes
+				.FirstOrDefault(ca => ca.AttributeType == typeof(MessageContractAttribute)) != null;
 
 			AllParameters = operationMethod.GetParameters()
 				.Select((info, index) => CreateParameterInfo(info, index, contract))
@@ -57,6 +58,8 @@ namespace SoapCore.ServiceModel
 				.Where(a => a.DetailType?.Name != null)
 				.Select(a => a.DetailType)
 				.ToArray();
+
+			ServiceKnownTypes = operationMethod.GetCustomAttributes<ServiceKnownTypeAttribute>(inherit: false);
 		}
 
 		public ContractDescription Contract { get; private set; }
@@ -74,17 +77,47 @@ namespace SoapCore.ServiceModel
 		public string ReturnName { get; private set; }
 		public string ReturnElementName { get; private set; }
 		public string ReturnNamespace { get; private set; }
+		public Type ReturnType { get; private set; }
+		public IEnumerable<ServiceKnownTypeAttribute> ServiceKnownTypes { get; private set; }
+
+		public IEnumerable<ServiceKnownTypeAttribute> GetServiceKnownTypesHierarchy()
+		{
+			foreach (ServiceKnownTypeAttribute serviceKnownType in ServiceKnownTypes)
+			{
+				yield return serviceKnownType;
+			}
+
+			foreach (ServiceKnownTypeAttribute serviceKnownType in Contract.ServiceKnownTypes)
+			{
+				yield return serviceKnownType;
+			}
+
+			// TODO: should we process service implementation service known type attributes
+			foreach (ServiceKnownTypeAttribute serviceKnownType in Contract.Service.ServiceKnownTypes)
+			{
+				yield return serviceKnownType;
+			}
+		}
 
 		private static SoapMethodParameterInfo CreateParameterInfo(ParameterInfo info, int index, ContractDescription contract)
 		{
 			var elementAttribute = info.GetCustomAttribute<XmlElementAttribute>();
 			var arrayAttribute = info.GetCustomAttribute<XmlArrayAttribute>();
+			var rootAttribute = (XmlRootAttribute)Attribute.GetCustomAttribute(info.ParameterType, typeof(XmlRootAttribute));
 			var arrayItemAttribute = info.GetCustomAttribute<XmlArrayItemAttribute>();
-			var parameterName = elementAttribute?.ElementName
-				?? arrayAttribute?.ElementName
-				?? info.GetCustomAttribute<MessageParameterAttribute>()?.Name
-				?? info.ParameterType.GetCustomAttribute<MessageContractAttribute>()?.WrapperName
-				?? info.Name;
+
+			var parameterName = string.IsNullOrEmpty(elementAttribute?.ElementName)
+				? string.IsNullOrEmpty(arrayAttribute?.ElementName)
+					? string.IsNullOrEmpty(rootAttribute?.ElementName)
+						? string.IsNullOrEmpty(info.GetCustomAttribute<MessageParameterAttribute>()?.Name)
+							? string.IsNullOrEmpty(info.ParameterType.GetCustomAttribute<MessageContractAttribute>()?.WrapperName)
+								? info.Name
+								: info.ParameterType.GetCustomAttribute<MessageContractAttribute>().WrapperName
+							: info.GetCustomAttribute<MessageParameterAttribute>().Name
+						: rootAttribute.ElementName
+					: arrayAttribute.ElementName
+				: elementAttribute.ElementName;
+
 			var arrayName = arrayAttribute?.ElementName;
 			var arrayItemName = arrayItemAttribute?.ElementName;
 			var parameterNs = elementAttribute?.Form == XmlSchemaForm.Unqualified
